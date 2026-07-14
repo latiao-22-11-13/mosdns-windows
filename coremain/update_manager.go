@@ -947,6 +947,10 @@ func (m *UpdateManager) fetchHTML(ctx context.Context, url string) (string, erro
 }
 
 func selectAsset(channel string, assets []githubAsset) *githubAsset {
+	return selectAssetForPlatform(channel, runtime.GOOS, runtime.GOARCH, binaryIsAMD64V3Plus(), assets)
+}
+
+func selectAssetForPlatform(channel, goos, goarch string, currentAMD64V3 bool, assets []githubAsset) *githubAsset {
 	type assetPattern struct {
 		exact  string
 		prefix string
@@ -955,11 +959,11 @@ func selectAsset(channel string, assets []githubAsset) *githubAsset {
 
 	var candidates []assetPattern
 	basePrefix := releaseAssetBaseName(channel) + "-"
-	switch runtime.GOOS {
+	switch goos {
 	case "linux":
-		switch runtime.GOARCH {
+		switch goarch {
 		case "amd64":
-			if binaryIsAMD64V3Plus() {
+			if currentAMD64V3 {
 				candidates = []assetPattern{
 					{prefix: basePrefix, suffix: "-linux-amd64-v3.tar.gz"},
 					{prefix: basePrefix, suffix: "-linux-amd64.tar.gz"},
@@ -985,22 +989,30 @@ func selectAsset(channel string, assets []githubAsset) *githubAsset {
 				{exact: releaseAssetBaseName(channel) + "-linux-arm-5.zip"},
 			}
 		case "mips", "mips64", "mips64le", "mipsle":
-			candidates = append(candidates, assetPattern{exact: fmt.Sprintf("%s-linux-%s.zip", releaseAssetBaseName(channel), runtime.GOARCH)})
+			candidates = append(candidates, assetPattern{exact: fmt.Sprintf("%s-linux-%s.zip", releaseAssetBaseName(channel), goarch)})
 		}
 	case "darwin":
-		candidates = append(candidates, assetPattern{exact: fmt.Sprintf("%s-darwin-%s.zip", releaseAssetBaseName(channel), runtime.GOARCH)})
+		candidates = append(candidates, assetPattern{exact: fmt.Sprintf("%s-darwin-%s.zip", releaseAssetBaseName(channel), goarch)})
 	case "windows":
-		if runtime.GOARCH == "amd64" {
-			if binaryIsAMD64V3Plus() {
+		if goarch == "amd64" {
+			if currentAMD64V3 {
 				candidates = []assetPattern{
+					{prefix: basePrefix, suffix: "-windows-amd64-v3.zip"},
+					{prefix: basePrefix, suffix: "-windows-amd64.zip"},
 					{exact: fmt.Sprintf("%s-windows-amd64-v3.zip", releaseAssetBaseName(channel))},
 					{exact: fmt.Sprintf("%s-windows-amd64.zip", releaseAssetBaseName(channel))},
 				}
 			} else {
-				candidates = []assetPattern{{exact: fmt.Sprintf("%s-windows-amd64.zip", releaseAssetBaseName(channel))}}
+				candidates = []assetPattern{
+					{prefix: basePrefix, suffix: "-windows-amd64.zip"},
+					{exact: fmt.Sprintf("%s-windows-amd64.zip", releaseAssetBaseName(channel))},
+				}
 			}
-		} else if runtime.GOARCH == "arm64" {
-			candidates = []assetPattern{{exact: fmt.Sprintf("%s-windows-arm64.zip", releaseAssetBaseName(channel))}}
+		} else if goarch == "arm64" {
+			candidates = []assetPattern{
+				{prefix: basePrefix, suffix: "-windows-arm64.zip"},
+				{exact: fmt.Sprintf("%s-windows-arm64.zip", releaseAssetBaseName(channel))},
+			}
 		}
 	}
 
@@ -1217,21 +1229,27 @@ func parseAssetsFromHTML(html string) []githubAsset {
 }
 
 func findV3Asset(channel string, assets []githubAsset) *githubAsset {
-	if runtime.GOARCH != "amd64" {
+	return findV3AssetForPlatform(channel, runtime.GOOS, runtime.GOARCH, assets)
+}
+
+func findV3AssetForPlatform(channel, goos, goarch string, assets []githubAsset) *githubAsset {
+	if goarch != "amd64" {
 		return nil
 	}
-	want := ""
+	exact := ""
+	suffix := ""
 	prefix := releaseAssetBaseName(channel) + "-"
-	switch runtime.GOOS {
+	switch goos {
 	case "linux":
-		want = "-linux-amd64-v3.tar.gz"
+		suffix = "-linux-amd64-v3.tar.gz"
 	case "windows":
-		want = fmt.Sprintf("%s-windows-amd64-v3.zip", releaseAssetBaseName(channel))
+		exact = fmt.Sprintf("%s-windows-amd64-v3.zip", releaseAssetBaseName(channel))
+		suffix = "-windows-amd64-v3.zip"
 	default:
 		return nil
 	}
 	for i := range assets {
-		if assetNameMatches(assets[i].Name, want) || assetNameMatchesAffix(assets[i].Name, prefix, want) {
+		if assetNameMatches(assets[i].Name, exact) || assetNameMatches(assets[i].Name, suffix) || assetNameMatchesAffix(assets[i].Name, prefix, suffix) {
 			return &assets[i]
 		}
 	}

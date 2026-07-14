@@ -1,5 +1,7 @@
 # mosdns
 
+> Windows-focused import: native Windows release zips, service scripts, and deployment notes live in [`docs/windows/README_WINDOWS.md`](docs/windows/README_WINDOWS.md). The default Windows runtime directory is `C:\ProgramData\mosdns`.
+
 这是一个基于 `yyysuo/mosdns` 的魔改版 mosdns，重构WebUI、新增专属上游、删除`nft` / `eBPF`支持及其他细节调整
 
 ## 适用场景
